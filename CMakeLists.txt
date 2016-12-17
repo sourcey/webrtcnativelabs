@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8.10)
-project(webrtcmediaserver)
+project(webrtcnativeexperiment)
 
 # Set the source directory and search locations as required for your project
-set(sourcedir src)
+set(sourcedir server)
 set(sourcefiles ${sourcedir}/*.cpp)
 set(headerfiles ${sourcedir}/*.h)
 
@@ -18,9 +18,9 @@ set(BUILD_SHARED_LIBS OFF)
 include("../libsourcey/LibSourcey.cmake")
 #print_module_variables(LibSourcey)
 
-include_directories(${sourcedir} ${LibSourcey_INCLUDE_DIRS} ${LibSourcey_MODULE_VENDOR_INCLUDE_DIRS} ${LibSourcey_VENDOR_INCLUDE_DIRS})
-link_directories(${LibSourcey_LIBRARY_DIRS} ${LibSourcey_MODULE_LIBRARY_DIRS})
-link_libraries(${LibSourcey_INCLUDE_LIBRARIES} ${LibSourcey_MODULE_INCLUDE_LIBRARIES})
+include_directories(${sourcedir} ${LibSourcey_INCLUDE_DIRS})
+link_directories(${LibSourcey_LIBRARY_DIRS})
+link_libraries(${LibSourcey_INCLUDE_LIBRARIES})
 
 # Glob your sources and headers
 # Be sure to modify the search paths according to your project structure
@@ -28,8 +28,7 @@ file(GLOB_RECURSE sources ${sourcefiles})
 file(GLOB_RECURSE headers ${headerfiles})
 
 # Create and install the executable
-# add_executable(webrtcmediaserver main.cpp ${headers})
-add_executable(webrtcmediaserver ${sources} ${headers})
-add_dependencies(webrtcmediaserver libuv jsoncpp)
-add_dependencies(webrtcmediaserver uv base crypto av net http util json socketio symple webrtc)
-install(TARGETS webrtcmediaserver RUNTIME DESTINATION bin)
+add_executable(webrtcnativeexperiment ${sources} ${headers})
+add_dependencies(webrtcnativeexperiment libuv jsoncpp)
+add_dependencies(webrtcnativeexperiment uv base crypto av net http util json socketio symple webrtc)
+install(TARGETS webrtcnativeexperiment RUNTIME DESTINATION bin)

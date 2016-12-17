@@ -81,17 +81,9 @@ void Signaler::onPeerConnected(smpl::Peer& peer)
         return;
     DebugL << "Peer connected: " << peer.id() << endl;
 
-    if (PeerConnectionManager::exists(peer.id())) {
-        DebugL << "Peer already has session: " << peer.id() << endl;
-        return;
+    if (PeerConnectionManager::exists(m.from().id())) {
+        DebugL << "Peer already has a session: " << m.from().id() << endl;
     }
-
-    auto conn = new PeerConnection(this, peer.id(), PeerConnection::Answer);
-    conn->constraints().SetMandatoryReceiveVideo(true);
-    conn->constraints().SetMandatoryReceiveAudio(true);
-    conn->createConnection();
-
-    PeerConnectionManager::add(peer.id(), conn);
 }
 
 
@@ -99,7 +91,22 @@ void Signaler::onPeerMessage(smpl::Message& m)
 {
     DebugL << "Peer message: " << m.from().toString() << endl;
 
-    if (m.isMember("offer")) {
+    if (m.isMember("stream")) {
+
+        // Start a streaming session
+        auto conn = new FilePeerConnection(this, peer.id(), "test.mp4");
+        PeerConnectionManager::add(m.from().id(), conn);
+
+    } else if (m.isMember("record")) {
+
+        // Start a recording session
+        auto conn = new PeerConnection(this, m.from().id(), PeerConnection::Answer);
+        conn->constraints().SetMandatoryReceiveVideo(true);
+        conn->constraints().SetMandatoryReceiveAudio(true);
+        conn->createConnection();
+        PeerConnectionManager::add(m.from().id(), conn);
+
+    } else if (m.isMember("offer")) {
         recvSDP(m.from().id, m["offer"]);
     } else if (m.isMember("answer")) {
         assert(0 && "answer not supported");
