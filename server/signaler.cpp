@@ -12,6 +12,7 @@
 
 #include "scy/av/codec.h"
 #include "scy/av/format.h"
+#include "scy/filesystem.h"
 #include "scy/util.h"
 
 #include <iostream>
@@ -37,6 +38,8 @@ Signaler::Signaler(const smpl::Client::Options& options)
     _client.StateChange += slot(this, &Signaler::onClientStateChange);
     _client.roster().ItemAdded += slot(this, &Signaler::onPeerConnected);
     _client.roster().ItemRemoved += slot(this, &Signaler::onPeerDiconnected);
+    _client += packetSlot(this, &Signaler::onPeerCommand);
+    _client += packetSlot(this, &Signaler::onPeerEvent);
     _client += packetSlot(this, &Signaler::onPeerMessage);
     _client.connect();
 }
@@ -51,27 +54,40 @@ void Signaler::sendSDP(PeerConnection* conn, const std::string& type,
                        const std::string& sdp)
 {
     assert(type == "offer" || type == "answer");
-    smpl::Message m;
-    Json::Value desc;
+    smpl::Event e;
+    e.setName("ice:sdp");
+    auto& desc = e["sdp"];
     desc[kSessionDescriptionTypeName] = type;
     desc[kSessionDescriptionSdpName] = sdp;
-    m[type] = desc;
+    // e.setData(kSessionDescriptionTypeName, type);
+    // e.setData(kSessionDescriptionSdpName, sdp);
 
-    postMessage(m);
+    postMessage(e);
 }
 
 
 void Signaler::sendCandidate(PeerConnection* conn, const std::string& mid,
                              int mlineindex, const std::string& sdp)
 {
-    smpl::Message m;
-    Json::Value desc;
+    smpl::Event e;
+    e.setName("ice:candidate");
+    auto& desc = e["candidate"];
     desc[kCandidateSdpMidName] = mid;
     desc[kCandidateSdpMlineIndexName] = mlineindex;
     desc[kCandidateSdpName] = sdp;
-    m["candidate"] = desc;
+    // e.setData(kCandidateSdpMidName, mid);
+    // e.setData(kCandidateSdpMlineIndexName, mlineindex);
+    // e.setData(kCandidateSdpName, sdp);
 
-    postMessage(m);
+    postMessage(e);
+    // smpl::Message m;
+    // Json::Value desc;
+    // desc[kCandidateSdpMidName] = mid;
+    // desc[kCandidateSdpMlineIndexName] = mlineindex;
+    // desc[kCandidateSdpName] = sdp;
+    // m["candidate"] = desc;
+    //
+    // postMessage(m);
 }
 
 
@@ -81,9 +97,85 @@ void Signaler::onPeerConnected(smpl::Peer& peer)
         return;
     DebugL << "Peer connected: " << peer.id() << endl;
 
-    if (PeerConnectionManager::exists(m.from().id())) {
-        DebugL << "Peer already has a session: " << m.from().id() << endl;
+    if (PeerConnectionManager::exists(peer.id())) {
+        DebugL << "Peer already has a session: " << peer.id() << endl;
     }
+}
+
+
+void Signaler::onPeerCommand(smpl::Command& c)
+{
+    DebugL << "Peer command: " << c.from().toString() << endl;
+
+    // List available files for streaming
+    if (c.node() == "streaming:files") {
+        json::Value files;
+        StringVec nodes;
+        fs::readdir(getDataDirectory(), nodes);
+        for (auto node : nodes) {
+            files.append(node);
+        }
+
+        c.setData("files", files);
+        c.setStatus(200);
+        _client.respond(c);
+    }
+
+    // Start a streaming session
+    else if (c.node() == "streaming:start") {
+        std::string file = c.data("file").asString();
+        std::string filePath(getDataDirectory());
+        fs::addnode(filePath, file);
+        auto conn = new FilePeerConnection(this, c.from().id, filePath);
+        auto stream = conn->createMediaStream();
+        conn->createConnection();
+        conn->createOffer();
+        PeerConnectionManager::add(c.from().id, conn);
+
+        c.setStatus(200);
+        _client.respond(c);
+    }
+
+    // Start a recording session
+    else if (c.node() == "recording:start") {
+        auto conn = new PeerConnection(this, c.from().id, PeerConnection::Answer);
+        conn->constraints().SetMandatoryReceiveVideo(true);
+        conn->constraints().SetMandatoryReceiveAudio(true);
+        conn->createConnection();
+        PeerConnectionManager::add(c.from().id, conn);
+
+        c.setStatus(200);
+        _client.respond(c);
+    }
+}
+
+
+void Signaler::onPeerEvent(smpl::Event& e)
+{
+    DebugL << "Peer event: " << e.from().toString() << endl;
+
+    // Streaming events
+    if (e.name() == "ice:sdp") {
+        recvSDP(e.from().id, e["sdp"]);
+    }
+    // else if (e.name() == "ice:answer") {
+    //     recvSDP(e.from().id, e["data"]);
+    //     // assert(0 && "answer not supported");
+    // }
+    else if (e.name() == "ice:candidate") {
+        recvCandidate(e.from().id, e["candidate"]);
+    }
+
+    // Recording events
+    // else if (e.name() == "recording:offer") {
+    //     recvSDP(e.from().id, e.data("offer"));
+    // }
+    // else if (e.name() == "recording:answer") {
+    //     assert(0 && "answer not supported");
+    // }
+    // else if (e.name() == "recording:candidate") {
+    //     recvCandidate(e.from().id, e.data("candidate"));
+    // }
 }
 
 
@@ -91,28 +183,13 @@ void Signaler::onPeerMessage(smpl::Message& m)
 {
     DebugL << "Peer message: " << m.from().toString() << endl;
 
-    if (m.isMember("stream")) {
-
-        // Start a streaming session
-        auto conn = new FilePeerConnection(this, peer.id(), "test.mp4");
-        PeerConnectionManager::add(m.from().id(), conn);
-
-    } else if (m.isMember("record")) {
-
-        // Start a recording session
-        auto conn = new PeerConnection(this, m.from().id(), PeerConnection::Answer);
-        conn->constraints().SetMandatoryReceiveVideo(true);
-        conn->constraints().SetMandatoryReceiveAudio(true);
-        conn->createConnection();
-        PeerConnectionManager::add(m.from().id(), conn);
-
-    } else if (m.isMember("offer")) {
-        recvSDP(m.from().id, m["offer"]);
-    } else if (m.isMember("answer")) {
-        assert(0 && "answer not supported");
-    } else if (m.isMember("candidate")) {
-        recvCandidate(m.from().id, m["candidate"]);
-    }
+    // if (m.isMember("offer")) {
+    //     recvSDP(m.from().id, m["offer"]);
+    // } else if (m.isMember("answer")) {
+    //     assert(0 && "answer not supported");
+    // } else if (m.isMember("candidate")) {
+    //     recvCandidate(m.from().id, m["candidate"]);
+    // }
     // else assert(0 && "unknown event");
 }
 
@@ -121,19 +198,18 @@ void Signaler::onPeerDiconnected(const smpl::Peer& peer)
 {
     DebugL << "Peer disconnected" << endl;
 
-    auto conn = get(peer.id());
-    if (conn) {
-        DebugL << "Closing peer connection: " << peer.id() << endl;
-        conn->closeConnection(); // will be deleted via callback
-    }
+    // auto conn = get(peer.id());
+    // if (conn) {
+    //     DebugL << "Closing peer connection: " << peer.id() << endl;
+    //     conn->closeConnection(); // will be deleted via callback
+    // }
 }
 
 
 void Signaler::onClientStateChange(void* sender, sockio::ClientState& state,
                                    const sockio::ClientState& oldState)
 {
-    DebugL << "Client state changed from " << oldState << " to " << state
-           << endl;
+    DebugL << "Client state changed from " << oldState << " to " << state << endl;
 
     switch (state.id()) {
         case sockio::ClientState::Connecting:
@@ -145,7 +221,7 @@ void Signaler::onClientStateChange(void* sender, sockio::ClientState& state,
         case sockio::ClientState::Error:
             throw std::runtime_error("Cannot connect to Symple server. "
                                      "Did you start the demo app and the "
-                                     "Symple server is running on port 4500?");
+                                     "Symple server is running on port 4551?");
     }
 }
 
@@ -210,6 +286,14 @@ void Signaler::syncMessage(const ipc::Action& action)
     auto m = reinterpret_cast<smpl::Message*>(action.arg);
     _client.send(*m);
     delete m;
+}
+
+
+std::string Signaler::getDataDirectory() const
+{
+    std::string dir(getCwd());
+    fs::addnode(dir, "data");
+    return dir;
 }
 
 

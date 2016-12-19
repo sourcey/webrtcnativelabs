@@ -28,13 +28,13 @@ using namespace scy;
 #if USE_SSL
 #define SERVER_PORT 443
 #else
-#define SERVER_PORT 4500
+#define SERVER_PORT 4551
 #endif
 
 
 int main(int argc, char** argv)
 {
-    Logger::instance().add(new ConsoleChannel("debug", LDebug)); // LTrace
+    Logger::instance().add(new ConsoleChannel("debug", LTrace)); // LTrace
 
 #if USE_SSL
     SSLManager::initNoVerifyClient();
@@ -51,8 +51,9 @@ int main(int argc, char** argv)
         smpl::Client::Options options;
         options.host = SERVER_HOST;
         options.port = SERVER_PORT;
-        options.name = "Video Recorder";
-        options.user = "videorecorder";
+        options.name = "Media Server";
+        options.user = "mediaserver";
+        options.type = "mediaserver";
 
         // NOTE: The server must enable anonymous authentication for this demo.
         // options.token = ""; token based authentication

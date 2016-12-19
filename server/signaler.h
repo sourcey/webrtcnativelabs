@@ -18,6 +18,7 @@
 #include "scy/net/sslsocket.h"
 #include "scy/symple/client.h"
 #include "scy/webrtc/peerconnectionmanager.h"
+#include "scy/webrtc/filepeerconnection.h"
 #include "scy/webrtc/streamrecorder.h"
 
 #include <iostream>
@@ -48,11 +49,15 @@ protected:
     void syncMessage(const ipc::Action& action);
 
     void onPeerConnected(smpl::Peer& peer);
+    void onPeerCommand(smpl::Command& m);
+    void onPeerEvent(smpl::Event& m);
     void onPeerMessage(smpl::Message& m);
     void onPeerDiconnected(const smpl::Peer& peer);
 
     void onClientStateChange(void* sender, sockio::ClientState& state,
                              const sockio::ClientState& oldState);
+
+    std::string getDataDirectory() const;             
 
 protected:
     ipc::SyncQueue<> _ipc;
