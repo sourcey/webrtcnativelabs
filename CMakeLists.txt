@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.10)
-project(webrtcmediaserver)
+project(webrtcnativelabs)
 
 # Set the source directory and search locations as required for your project
 set(sourcedir server)
@@ -28,7 +28,7 @@ file(GLOB_RECURSE sources ${sourcefiles})
 file(GLOB_RECURSE headers ${headerfiles})
 
 # Create and install the executable
-add_executable(webrtcmediaserver ${sources} ${headers})
-add_dependencies(webrtcmediaserver libuv jsoncpp)
-add_dependencies(webrtcmediaserver uv base crypto av net http util json socketio symple webrtc)
-install(TARGETS webrtcmediaserver RUNTIME DESTINATION bin)
+add_executable(webrtcnativelabs ${sources} ${headers})
+add_dependencies(webrtcnativelabs libuv jsoncpp)
+add_dependencies(webrtcnativelabs uv base crypto av net http util json socketio symple webrtc)
+install(TARGETS webrtcnativelabs RUNTIME DESTINATION bin)

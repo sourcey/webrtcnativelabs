@@ -18,11 +18,8 @@
 #include "scy/net/sslsocket.h"
 #include "scy/symple/client.h"
 #include "scy/webrtc/peerconnectionmanager.h"
-#include "scy/webrtc/filepeerconnection.h"
-#include "scy/webrtc/streamrecorder.h"
-
-#include <iostream>
-#include <string>
+#include "scy/webrtc/streamingpeerconnection.h"
+#include "scy/webrtc/recordingpeerconnection.h"
 
 
 namespace scy {
@@ -54,19 +51,17 @@ protected:
     void onPeerMessage(smpl::Message& m);
     void onPeerDiconnected(const smpl::Peer& peer);
 
-    void onClientStateChange(void* sender, sockio::ClientState& state,
-                             const sockio::ClientState& oldState);
+    void onClientStateChange(void* sender, sockio::ClientState& state, const sockio::ClientState& oldState);
 
-    std::string getDataDirectory() const;             
+    std::string getDataDirectory() const;
 
 protected:
-    ipc::SyncQueue<> _ipc;
 #if USE_SSL
     smpl::SSLClient _client;
 #else
     smpl::TCPClient _client;
 #endif
-    std::unique_ptr<StreamRecorder> _recorder;
+    ipc::SyncQueue<> _ipc;
 };
 
 

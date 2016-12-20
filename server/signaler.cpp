@@ -20,9 +20,9 @@
 
 
 #define OUTPUT_FILENAME "webrtcrecorder.mp4"
-#define OUTPUT_FORMAT                                                          \
-    av::Format("MP4", "mp4", av::VideoCodec("H.264", "libx264", 400, 300, 25,  \
-                                            48000, 128000, "yuv420p"),         \
+#define OUTPUT_FORMAT                                                                      \
+    av::Format("MP4", "mp4",                                                               \
+               av::VideoCodec("H.264", "libx264", 400, 300, 25, 48000, 128000, "yuv420p"), \
                av::AudioCodec("AAC", "libfdk_aac", 2, 44100, 64000, "s16"));
 
 
@@ -59,8 +59,6 @@ void Signaler::sendSDP(PeerConnection* conn, const std::string& type,
     auto& desc = e["sdp"];
     desc[kSessionDescriptionTypeName] = type;
     desc[kSessionDescriptionSdpName] = sdp;
-    // e.setData(kSessionDescriptionTypeName, type);
-    // e.setData(kSessionDescriptionSdpName, sdp);
 
     postMessage(e);
 }
@@ -75,19 +73,8 @@ void Signaler::sendCandidate(PeerConnection* conn, const std::string& mid,
     desc[kCandidateSdpMidName] = mid;
     desc[kCandidateSdpMlineIndexName] = mlineindex;
     desc[kCandidateSdpName] = sdp;
-    // e.setData(kCandidateSdpMidName, mid);
-    // e.setData(kCandidateSdpMlineIndexName, mlineindex);
-    // e.setData(kCandidateSdpName, sdp);
 
     postMessage(e);
-    // smpl::Message m;
-    // Json::Value desc;
-    // desc[kCandidateSdpMidName] = mid;
-    // desc[kCandidateSdpMlineIndexName] = mlineindex;
-    // desc[kCandidateSdpName] = sdp;
-    // m["candidate"] = desc;
-    //
-    // postMessage(m);
 }
 
 
@@ -126,26 +113,33 @@ void Signaler::onPeerCommand(smpl::Command& c)
         std::string file = c.data("file").asString();
         std::string filePath(getDataDirectory());
         fs::addnode(filePath, file);
-        auto conn = new FilePeerConnection(this, c.from().id, filePath);
+        auto conn = new StreamingPeerConnection(this, c.from().id, c.id(), filePath);
         auto stream = conn->createMediaStream();
         conn->createConnection();
         conn->createOffer();
-        PeerConnectionManager::add(c.from().id, conn);
+        PeerConnectionManager::add(c.id(), conn);
 
         c.setStatus(200);
         _client.respond(c);
+        // _client.persistence().add(c.id(), reinterpret_cast<smpl::Message *>(c.clone()), 0);
     }
 
     // Start a recording session
     else if (c.node() == "recording:start") {
-        auto conn = new PeerConnection(this, c.from().id, PeerConnection::Answer);
+
+        av::EncoderOptions options;
+        options.ofile = OUTPUT_FILENAME;
+        options.oformat = OUTPUT_FORMAT;
+
+        auto conn = new RecordingPeerConnection(this, c.from().id, c.id(), options);
         conn->constraints().SetMandatoryReceiveVideo(true);
         conn->constraints().SetMandatoryReceiveAudio(true);
         conn->createConnection();
-        PeerConnectionManager::add(c.from().id, conn);
+        PeerConnectionManager::add(c.id(), conn);
 
         c.setStatus(200);
         _client.respond(c);
+        // _client.persistence().add(c.id(), reinterpret_cast<smpl::Message *>(c.clone()), 0);
     }
 }
 
@@ -154,49 +148,26 @@ void Signaler::onPeerEvent(smpl::Event& e)
 {
     DebugL << "Peer event: " << e.from().toString() << endl;
 
-    // Streaming events
     if (e.name() == "ice:sdp") {
         recvSDP(e.from().id, e["sdp"]);
     }
-    // else if (e.name() == "ice:answer") {
-    //     recvSDP(e.from().id, e["data"]);
-    //     // assert(0 && "answer not supported");
-    // }
     else if (e.name() == "ice:candidate") {
         recvCandidate(e.from().id, e["candidate"]);
     }
-
-    // Recording events
-    // else if (e.name() == "recording:offer") {
-    //     recvSDP(e.from().id, e.data("offer"));
-    // }
-    // else if (e.name() == "recording:answer") {
-    //     assert(0 && "answer not supported");
-    // }
-    // else if (e.name() == "recording:candidate") {
-    //     recvCandidate(e.from().id, e.data("candidate"));
-    // }
 }
 
 
 void Signaler::onPeerMessage(smpl::Message& m)
 {
     DebugL << "Peer message: " << m.from().toString() << endl;
-
-    // if (m.isMember("offer")) {
-    //     recvSDP(m.from().id, m["offer"]);
-    // } else if (m.isMember("answer")) {
-    //     assert(0 && "answer not supported");
-    // } else if (m.isMember("candidate")) {
-    //     recvCandidate(m.from().id, m["candidate"]);
-    // }
-    // else assert(0 && "unknown event");
 }
 
 
 void Signaler::onPeerDiconnected(const smpl::Peer& peer)
 {
     DebugL << "Peer disconnected" << endl;
+
+    // TODO: Loop all and close for peer
 
     // auto conn = get(peer.id());
     // if (conn) {
@@ -226,29 +197,12 @@ void Signaler::onClientStateChange(void* sender, sockio::ClientState& state,
 }
 
 
-void Signaler::onAddRemoteStream(PeerConnection* conn,
-                                 webrtc::MediaStreamInterface* stream)
+void Signaler::onAddRemoteStream(PeerConnection* conn, webrtc::MediaStreamInterface* stream)
 {
-    // TODO: StreamRecorder should be a member of PeerConnection
-
-    av::EncoderOptions options;
-    options.ofile = OUTPUT_FILENAME;
-    options.oformat = OUTPUT_FORMAT;
-
-    _recorder.reset(new StreamRecorder(options));
-
-    auto videoTracks = stream->GetVideoTracks();
-    if (!videoTracks.empty())
-        _recorder->setVideoTrack(videoTracks[0]);
-
-    auto audioTracks = stream->GetAudioTracks();
-    if (!audioTracks.empty())
-        _recorder->setAudioTrack(audioTracks[0]);
 }
 
 
-void Signaler::onRemoveRemoteStream(PeerConnection* conn,
-                                    webrtc::MediaStreamInterface* stream)
+void Signaler::onRemoveRemoteStream(PeerConnection* conn, webrtc::MediaStreamInterface* stream)
 {
     assert(0 && "free streams");
 }
@@ -261,14 +215,14 @@ void Signaler::onStable(PeerConnection* conn)
 
 void Signaler::onClosed(PeerConnection* conn)
 {
-    _recorder.reset(); // shutdown the recorder
+    // _recorder.reset(); // shutdown the recorder
     PeerConnectionManager::onClosed(conn);
 }
 
 
 void Signaler::onFailure(PeerConnection* conn, const std::string& error)
 {
-    _recorder.reset(); // shutdown the recorder
+    // _recorder.reset(); // shutdown the recorder
     PeerConnectionManager::onFailure(conn, error);
 }
 
@@ -291,6 +245,7 @@ void Signaler::syncMessage(const ipc::Action& action)
 
 std::string Signaler::getDataDirectory() const
 {
+    // TODO: Make configurable
     std::string dir(getCwd());
     fs::addnode(dir, "data");
     return dir;
