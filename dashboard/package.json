@@ -1,0 +1,36 @@
+{
+  "name": "symple-webrtc-video-chat-demo",
+  "title": "Symple WebRTC Video Chat Demo",
+  "version": "0.6.1",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "symple" : "*",
+    "symple-client" : "*",
+    "symple-client-player" : "*",
+    "express" : "~4.13.3",
+    "ejs" : "~2.3.4",
+    "redis" : "~2.4.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sourcey/symple-webrtc-video-chat-demo.git"
+  },
+  "keywords": [
+    "symple",
+    "server",
+    "realtime",
+    "messaging",
+    "websocket",
+    "streaming",
+    "webrtc",
+    "chat"
+  ],
+  "author": "Kam Low <auscaster@gmail.com> (http://sourcey.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sourcey/symple-webrtc-video-chat-demo/issues"
+  },
+  "homepage": "http://sourcey.com/symple"
+}

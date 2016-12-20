@@ -1,0 +1,16 @@
+{
+  /* The port to listen on */
+  "port" : 4551,
+
+  /* Allow anonymous connections */
+  "anonymous" : true,
+
+  /* Session ttl in minutes
+  "sessionTtl" : 15, */
+
+  /* Redis configuration
+  "redis" : {
+    "host" : "localhost",
+    "port" : 6379
+  } */
+}

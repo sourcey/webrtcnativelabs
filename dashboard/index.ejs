@@ -1,0 +1,235 @@
+<html ng-app="sympleApp">
+<head>
+<title>Symple WebRTC Live Video Chat Demo</title>
+<meta name="description" content="This demo showcases how to use Symple to create a WebRTC chat application.">
+
+<script>
+
+  // Symple client options
+  CLIENT_OPTIONS = {
+    url: 'http://localhost:<%- port %>',
+    //url: 'http://sympleserver.sourcey.com:<%- port %>',
+    token: <%- token %>,
+    peer: <%- JSON.stringify(peer) %>
+  }
+
+  // WebRTC config
+  // This is where you would add TURN servers for use in production
+  WEBRTC_CONFIG = {
+    'iceServers': [
+      {'url': 'stun:stun.l.google.com:19302'}
+    ]
+  }
+</script>
+
+<!-- Framework -->
+<link rel="stylesheet" type="text/css" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<link rel="stylesheet" type="text/css" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+<link rel="stylesheet" href="https://use.fontawesome.com/55d3ed573c.css">
+<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<script type="text/javascript" src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/angularjs/1.6.0/angular.min.js"></script>
+<!-- https://raw.githubusercontent.com/mikeric/rivets/v0.9.4/dist/rivets.bundled.min.js -->
+<script type="text/javascript" src="//cdn.socket.io/socket.io-1.4.5.js"></script>
+
+<!-- Symple -->
+<link rel="stylesheet" type="text/css" href="symple.player.css">
+<script type="text/javascript" src="symple.js"></script>
+<script type="text/javascript" src="symple.client.js"></script>
+<script type="text/javascript" src="symple.player.js"></script>
+<script type="text/javascript" src="symple.player.webrtc.js"></script>
+
+<!-- Application -->
+<link rel="stylesheet" type="text/css" href="app.css">
+<script type="text/javascript" src="helpers.js"></script>
+<script type="text/javascript" src="app.js"></script>
+</head>
+
+<body ng-controller="DashboardController">
+
+  <div id="loading-overlay" ng-show="isLoading">
+    <div class="icon">
+    </div>
+  </div>
+
+  <div id="container">
+
+    <nav id="nav">
+      <h1 id="logo"><a href="http://symple.sourcey.com">Symple WebRTC Video Chat</a></h1>
+      <a href="http://sourcey.com/symple-webrtc-video-chat-demo">about</a>
+      <a href="//github.com/sourcey/symple-client/tree/master/demo">code</a>
+    </nav>
+
+    <div class="alert alert-danger" ng-show="errorText" ng-bind="errorText">You have been disconnected from the server</div>
+
+    <div class="row">
+      <div class="col-md-4">
+
+        <div id="login" ng-show="!isLoggedIn()" class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title">Login</h3>
+          </div>
+          <div class="panel-body">
+            <form ng-submit="login()">
+              <div class="input-group">
+                <input type="text" class="form-control" ng-model="handle" value="" placeholder="Enter a handle to login..." />
+                <span class="input-group-btn">
+                  <button class="btn btn-primary" type="submit">Login</button>
+                </span>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div id="roster">
+           <div class="panel panel-default">
+              <div class="panel-heading">
+                <h3 class="panel-title">People</h3>
+              </div>
+              <ul class="list-group">
+                  <li class="list-group-item list-group-item-warning" ng-show="!isLoggedIn()"><small>Please login...</small></li>
+                  <li class="list-group-item" ng-repeat="peer in peers">
+                      <div class="btn-group btn-group-sm pull-right">
+                        <button type="button" class="btn btn-default" ng-click="setMessageTarget(peer.user)" ng-if="handle != peer.user"><i class="fa fa-comments"></i></button>
+                        <button type="button" class="btn btn-default" ng-click="startVideoCall(peer.user)" ng-if="!remoteVideoPeer && handle != peer.user"><i class="fa fa-video-camera"></i></button>
+                        <button type="button" class="btn btn-default active" ng-click="stopVideoCall(peer.user)" ng-if="remoteVideoPeer && handle != peer.user"><i class="fa fa-video-camera"></i></button>
+                        <button type="button" class="btn btn-default record" ng-click="startRecording(peer.user)" ng-if="mediaServerPeer"><i class="fa fa-circle"></i></button>
+                        <button type="button" class="btn btn-default record active" ng-click="stopRecording(peer.user)" ng-if="mediaServerPeer"><i class="fa fa-circle"></i></button>
+
+                        <!-- <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                          Action <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu" role="menu">
+                          <li><a href="javascript:void(0)" ng-click="setMessageTarget(peer.user)">Direct message</a></li>
+                          <li><a href="javascript:void(0)" ng-click="startVideoCall(peer.user)">Video chat</a></li>
+                        </ul> -->
+                      </div>
+                      <b>@{{peer.user}}</b>
+                      <!--
+                      <h4 class="list-group-item-heading">@{{peer.user}}</h4>
+                      <p class="list-group-item-text">...</p>
+                      -->
+                  </li>
+              </ul>
+            </div>
+        </div>
+
+        <div id="recordings" ng-show="hasMediaServer()">
+           <div class="panel panel-default">
+              <div class="panel-heading">
+                <h3 class="panel-title">Recordings</h3>
+              </div>
+              <ul class="list-group">
+                  <li class="list-group-item list-group-item-warning" ng-show="!isLoggedIn()"><small>Please login...</small></li>
+                  <li class="list-group-item" ng-repeat="file in streamableFiles">
+                      <b>{{file}}</b>
+                      <div class="btn-group btn-group-xs pull-right">
+                        <button type="button" class="btn btn-default" ng-show="currentStreamingFile != file" ng-click="startStreamingFile(file)">Play</button>
+                        <button type="button" class="btn btn-default" ng-show="currentStreamingFile == file" ng-click="stopStreamingFile(file)">Stop</button>
+                        <!-- <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                          Action <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu" role="menu">
+                          <li><a href="javascript:void(0)" ng-click="setMessageTarget(peer.user)">Direct message</a></li>
+                          <li><a href="javascript:void(0)" ng-click="startVideoCall(peer.user)">Video chat</a></li>
+                        </ul> -->
+                      </div>
+                      <!--
+                      <b>@{{peer.user}}</b>
+                      <h4 class="list-group-item-heading">@{{peer.user}}</h4>
+                      <p class="list-group-item-text">...</p>
+                      -->
+                  </li>
+              </ul>
+            </div>
+        </div>
+      </div>
+
+      <div class="col-md-8">
+
+        <div id="video">
+          <div class="panel panel-default">
+            <div class="panel-heading">
+              <h3 class="panel-title">Video</h3>
+            </div>
+            <div class="panel-body">
+              <div class="local-video-wrap" ng-show="remoteVideoPeer">
+                <div class="local-video">
+                </div>
+                <button id="start-local-video" class="btn btn-primary" ng-click="startLocalVideo()" ng-show="remoteVideoPeer && !localVideoPlaying">Start video</button>
+              </div>
+              <div class="remote-video-wrap">
+                <div class="remote-video">
+                </div>
+              </div>
+          </div>
+
+          <div class="modal fade" id="incoming-call-modal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-sm">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title">Incoming call...</h4>
+                </div>
+                <div class="modal-body">
+                  <p>You have an incoming video call from <span class="caller"></span></p>
+                  <div class="btn-group btn-group-justified">
+                    <div class="btn-group">
+                      <button type="button" class="btn btn-success accept">Accept</button>
+                    </div>
+                    <div class="btn-group">
+                      <button type="button" class="btn btn-danger reject">Reject</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="messages">
+            <div class="panel panel-default">
+              <div class="panel-heading">
+                <h3 class="panel-title">Conversation</h3>
+              </div>
+              <ul class="list-group">
+                  <li class="list-group-item">
+                    <form id="post-message" ng-submit="sendMessage()">
+                      <div class="input-group">
+                        <span class="input-group-btn">
+                          <button class="btn btn-default dropdown-toggle direct-user" data-toggle="dropdown" type="button">@</button>
+                          <ul class="dropdown-menu" role="menu">
+                            <li><a href="javascript:void(0)" ng-click="setMessageTarget()">Send to everyone</a></li>
+                            <li class="divider"></li>
+                            <li ng-repeat="peer in peers">
+                              <a href="javascript:void(0)" ng-click="setMessageTarget(peer.user)">@{{peer.user}}</a>
+                            </li>
+                          </ul>
+                        </span>
+                        <input type="text" class="form-control message-text" ng-model="messageText" placeholder="Type your message here" />
+                        <span class="input-group-btn">
+                          <button class="btn btn-default" type="submit">Send!</button>
+                        </span>
+                      </div>
+                    </form>
+                  </li>
+                  <li class="list-group-item" ng-class="getMessageClass(message)" ng-repeat="message in messages">
+                    <span class="time">{{message.time}}</span>
+                    <span class="user">@{{message.user}}</span>
+                    <span class="data">{{message.data}}</span>
+                  </li>
+              </ul>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Built with <a href="http://sourcey.com/symple">Symple</a>,
+      <a href="http://socket.io">Socket.IO</a>,
+      <a href="http://getbootstrap.com">Bootstrap</a> and
+      <a href="http://angularjs.org">AngularJS</a>.
+      &copy; 2016 Sourcey
+    </footer>
+  </div>
+</body>
+</html>
