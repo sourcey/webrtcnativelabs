@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8.10)
 project(webrtcnativelabs)
 
+
 # Set the source directory and search locations as required for your project
 set(sourcedir server)
 set(sourcefiles ${sourcedir}/*.cpp)
