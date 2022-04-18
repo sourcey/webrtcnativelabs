@@ -4,6 +4,7 @@ project(webrtcnativelabs)
 
 # Set the source directory and search locations as required for your project
 set(sourcedir server)
+
 set(sourcefiles ${sourcedir}/*.cpp)
 set(headerfiles ${sourcedir}/*.h)
 
